@@ -66,27 +66,23 @@ successful JSON generation as equivalent to reliable extraction.
 
 ## Dataset
 
-The experiments use the publicly available **ACI-BENCH clinical dialogue
-dataset**.
+This study uses the publicly available
+[ACI-BENCH](https://github.com/wyim/aci-bench) clinical dialogue dataset.
 
-The selected Task B dataset contains **40 clinical conversation cases** with:
+The experiments use the Task B test set,
+`clinicalnlp_taskB_test1.json`, containing doctor-patient transcripts,
+reference clinical notes, and case identifiers.
 
-- a doctor-patient transcript,
-- a reference clinical note, and
-- a case identifier.
-
-The experimental split is:
+The notebook downloads the dataset directly from the official ACI-BENCH
+repository to preserve reproducibility.
 
 | Split | Cases | Purpose |
 |---|---:|---|
 | Development / Pilot | 5 | Schema and evaluation development |
-| Held-out Evaluation | 35 | Frozen final evaluation |
+| Held-out Evaluation | 35 | Frozen evaluation |
 | **Total** | **40** | |
 
-The 35 held-out cases are not used to modify the frozen schema, prompts, or
-semantic evaluation rules.
-
----
+The original dataset is not redistributed in this repository.
 
 ## Experimental Design
 
