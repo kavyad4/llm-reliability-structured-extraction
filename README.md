@@ -2,305 +2,486 @@
 
 **Independent Research Project | 2026**
 
-This project investigates the reliability of large language models (LLMs) for
-converting clinical dialogue into structured JSON.
+This project investigates the reliability of large language models (LLMs) for converting clinical dialogue into structured data.
 
-The central motivation is that an LLM output can be syntactically valid while
-still being unreliable: information may be omitted, mapped to the wrong field,
-assigned an incorrect status, or introduced without sufficient support from
-the source transcript.
+The work began from a practical observation: an LLM output can satisfy a strict JSON schema while still being incorrect in meaning. Information may be omitted, mapped to the wrong field, assigned an incorrect status or certainty, or introduced without sufficient support from the source transcript.
 
-This study evaluates whether explicit schema constraints improve both
-**structural validity** and **semantic reliability** in structured LLM
-generation.
+The project therefore separates **structural validity** from **semantic reliability** and studies how schema design and source-evidence quality affect both.
 
-> **Status:** Ongoing research. The development/pilot phase is complete and the
-> frozen held-out evaluation is currently in progress.
+> **Research status:** Study 1 and Study 2 are complete. A third-stage intervention study focused on evidence-aware abstention and verification is being designed.
 
 ---
 
-## Research Question
+## Research Questions
 
-**How effectively do schema constraints improve the reliability of
-LLM-generated structured clinical information?**
+The project has developed through a sequence of research questions.
 
-The study examines two different dimensions of reliability:
+### Study 1 — Structural vs. Semantic Reliability
 
-1. **Structural reliability**
-   - Is the output valid JSON?
-   - Does it satisfy the required JSON Schema?
-   - Are required fields present?
-   - Are field types and allowed values correct?
+**Do schema constraints improve both structural validity and semantic reliability in LLM-generated structured information?**
 
-2. **Semantic reliability**
-   - Did the model extract the supported information?
-   - Was the information mapped to the correct field?
-   - Were important details omitted?
-   - Were status or certainty labels correct?
-   - Did the model introduce unsupported information?
+### Study 2 — Evidence, Schema Design, and Semantic Failure
 
-The larger goal is to distinguish **structural correctness** from
-**semantic correctness**.
+After Study 1 showed that structural validity could improve without corresponding semantic improvement, the follow-up question became:
 
----
+**Under what evidence and schema conditions do semantically incorrect structured predictions occur?**
 
-## Why This Matters
+Study 2 examines the interaction among:
 
-Structured generation is increasingly used to transform unstructured text into
-machine-readable data.
+- source-evidence quality,
+- target-field semantics,
+- schema representation, and
+- model commitment or abstention behavior.
 
-In clinical and other high-stakes workflows, simply producing valid JSON is not
-enough.
+### Planned Stage 3 — Evidence-Aware Reliability
 
-For example, a model may correctly identify that a medication appears in a
-conversation but incorrectly label the medication action as `continue`,
-`stop`, or `start`.
+The next research question is:
 
-Such an output may be perfectly schema-valid while still being semantically
-incorrect.
+**Can an LLM be made better at recognizing when available evidence is insufficient to justify a structured prediction and decide when to commit, abstain, verify, or seek additional evidence?**
 
-This project studies these failure modes separately rather than treating
-successful JSON generation as equivalent to reliable extraction.
+Stage 3 is currently a planned research direction and has not yet been executed.
 
 ---
 
-## Dataset
+# Key Findings
 
-This study uses the publicly available
-[ACI-BENCH](https://github.com/wyim/aci-bench) clinical dialogue dataset.
+## Study 1
 
-The experiments use the Task B test set,
-`clinicalnlp_taskB_test1.json`, containing doctor-patient transcripts,
-reference clinical notes, and case identifiers.
+On **35 held-out ACI-BENCH clinical dialogues**:
 
-The notebook downloads the dataset directly from the official ACI-BENCH
-repository to preserve reproducibility.
+| Condition | Schema-Valid Outputs | Schema Errors | Semantic Errors |
+|---|---:|---:|---:|
+| Baseline | 0 / 35 | 848 | 71 |
+| Schema-Constrained | 35 / 35 | 0 | 83 |
+
+Schema-constrained generation completely eliminated the observed structural violations, improving schema validity from **0/35 to 35/35**.
+
+However, semantic errors did not improve. They increased from **71 baseline errors to 83 constrained errors**.
+
+> **Finding:** Structural compliance does not guarantee semantic reliability.
+
+---
+
+## Study 2
+
+A controlled follow-up experiment evaluated:
+
+- **48 source scenarios**
+- **4 schema variants per scenario**
+- **192 total generations**
+
+Source evidence was systematically varied across:
+
+- explicit,
+- ambiguous,
+- absent, and
+- contradictory evidence.
+
+Schema representation was varied across:
+
+- forced-required,
+- required-nullable,
+- optional, and
+- semantically richer schemas.
+
+Four structured extraction fields were examined:
+
+- medication action,
+- symptom status,
+- follow-up condition, and
+- symptom severity.
+
+### Overall Semantic Results
+
+| Metric | Result |
+|---|---:|
+| Total generations | 192 |
+| Semantically correct | 165 |
+| Semantic errors | 27 |
+| Semantic accuracy | 85.94% |
+
+### Results by Evidence Condition
+
+| Evidence Condition | Correct | Errors | Accuracy |
+|---|---:|---:|---:|
+| Explicit | 48 / 48 | 0 | 100% |
+| Ambiguous | 31 / 48 | 17 | 64.58% |
+| Absent | 42 / 48 | 6 | 87.50% |
+| Contradictory | 44 / 48 | 4 | 91.67% |
+
+Semantic failures were strongly concentrated under **ambiguous evidence**, whereas all generations under explicit evidence were semantically correct in this controlled experiment.
+
+### Results by Schema Variant
+
+| Schema Variant | Correct | Errors | Accuracy |
+|---|---:|---:|---:|
+| Forced-required | 40 / 48 | 8 | 83.33% |
+| Required-nullable | 42 / 48 | 6 | 87.50% |
+| Optional | 42 / 48 | 6 | 87.50% |
+| Semantically richer | 41 / 48 | 7 | 85.42% |
+
+No schema representation was universally superior.
+
+Importantly, simply allowing a field to be `null` or omitted did **not** consistently prevent the model from making an incorrect commitment under ambiguous evidence.
+
+> **Finding:** Abstention capability does not necessarily produce appropriate abstention behavior.
+
+### Results by Target Field
+
+| Target Field | Correct | Errors | Accuracy |
+|---|---:|---:|---:|
+| `follow_up.condition` | 42 / 48 | 6 | 87.50% |
+| `medications[].action[]<item>` | 42 / 48 | 6 | 87.50% |
+| `symptoms[].severity` | 47 / 48 | 1 | 97.92% |
+| `symptoms[].status` | 34 / 48 | 14 | 70.83% |
+
+The effect of ambiguity was therefore not uniform across fields.
+
+For example, under ambiguous evidence:
+
+- follow-up condition: **0/12 errors**
+- medication action: **6/12 errors**
+- symptom severity: **1/12 error**
+- symptom status: **10/12 errors**
+
+This suggests that source ambiguity interacts with the semantics of the target field rather than producing a uniform degradation across all structured variables.
+
+---
+
+# Main Interpretation
+
+Together, Study 1 and Study 2 suggest that reliable structured LLM generation cannot be reduced to schema compliance alone.
+
+The results are most consistent with semantic reliability being shaped by the interaction among:
+
+**source evidence × target-field semantics × schema representation**
+
+Three findings are particularly important:
+
+1. **Perfect structural validity can coexist with semantic error.**
+
+2. **Ambiguous evidence is a major failure condition in the controlled Study 2 scenarios.**
+
+3. **Providing an abstention mechanism is different from ensuring that a model recognizes when it should abstain.**
+
+Richer schemas also helped selectively rather than universally. For example, the semantically richer representation produced **12/12 correct outputs for follow-up conditions**, while simpler schemas performed better for symptom severity.
+
+These results motivate the next stage of the project: moving from diagnosing semantic failures toward designing mechanisms that help models recognize insufficient evidence before committing to a prediction.
+
+---
+
+# Study 1 — Dataset and Experimental Design
+
+Study 1 uses the publicly available [ACI-BENCH](https://github.com/wyim/aci-bench) clinical dialogue dataset.
+
+The experiments use the Task B test data containing doctor-patient transcripts, reference clinical notes, and case identifiers.
 
 | Split | Cases | Purpose |
 |---|---:|---|
-| Development / Pilot | 5 | Schema and evaluation development |
-| Held-out Evaluation | 35 | Frozen evaluation |
+| Development / Pilot | 5 | Schema and evaluation-protocol development |
+| Held-out Evaluation | 35 | Frozen final evaluation |
 | **Total** | **40** | |
 
-The original dataset is not redistributed in this repository.
+The original ACI-BENCH dataset is not redistributed in this repository.
 
-## Experimental Design
+The held-out experiment used the same frozen:
 
-Two generation conditions are currently compared.
-
-### A. Baseline Generation
-
-The model receives the clinical transcript and a lightweight description of
-the desired JSON structure.
-
-No JSON Schema is enforced during generation.
-
-### B. Schema-Constrained Generation
-
-The same transcript is provided to the model, but generation is constrained by
-a frozen JSON Schema.
-
-The schema specifies required fields, object structures, types, enumerations,
-and allowed properties.
-
-The held-out experiment uses:
+- model family,
+- prompt conditions,
+- JSON Schema,
+- evaluation definitions, and
+- structural validation procedure.
 
 **Model:** `gemini-3.5-flash`
 
-The same frozen model, schema, prompt templates, and evaluation rules are used
-throughout the held-out experiment.
+---
+
+# Study 1 Generation Conditions
+
+## Baseline Generation
+
+The model receives the source clinical transcript and instructions describing the desired structured output.
+
+No JSON Schema is enforced during generation.
+
+## Schema-Constrained Generation
+
+The same source transcript is provided, but generation is constrained using a frozen JSON Schema defining:
+
+- required fields,
+- object structures,
+- data types,
+- enumerations, and
+- allowed properties.
+
+The goal is to isolate the effect of schema enforcement from the semantic correctness of the resulting extraction.
 
 ---
 
-## Structured Clinical Schema
+# Structured Clinical Schema
 
-The project defines a structured schema covering major clinical information
-categories:
+The Study 1 schema represents major clinical-information categories including:
 
-- Patient
-- Encounter
-- Medical history
-- Symptoms
-- Medications
-- Physical examination
-- Diagnostic tests
-- Assessment
-- Plan
-- Follow-up
+- patient information,
+- encounter information,
+- medical history,
+- symptoms,
+- medications,
+- physical examination,
+- diagnostic tests,
+- assessment,
+- plan, and
+- follow-up.
 
-The schema includes explicit distinctions such as:
+It also distinguishes semantic states such as:
 
 - present vs. denied vs. resolved symptoms,
 - current vs. recommended medications,
-- reviewed vs. ordered diagnostic tests,
+- reviewed vs. ordered tests,
 - confirmed vs. suspected assessments, and
-- medication actions such as start, continue, increase, decrease, refill,
-  stop, and recommend.
+- medication actions including start, continue, increase, decrease, refill, stop, and recommend.
 
-The schema is validated using JSON Schema Draft 2020-12.
+Structural validation uses **JSON Schema Draft 2020-12**.
 
 ---
 
-## Evaluation Framework
+# Evaluation Framework
 
-### Structural Evaluation
+## Structural Evaluation
 
-Each generated output is evaluated for:
+Generated outputs are evaluated for:
 
-- JSON validity
-- JSON Schema validity
-- required-field violations
-- additional-property violations
-- type violations
-- enumeration violations
+- JSON validity,
+- JSON Schema validity,
+- required-field violations,
+- additional-property violations,
+- type violations, and
+- enumeration violations.
 
-### Semantic Evaluation
+## Semantic Evaluation
 
-Model outputs are manually reviewed against the source transcript using five
-frozen error categories:
+Outputs are evaluated against the source evidence using a frozen error taxonomy.
 
 | Error Type | Description |
 |---|---|
 | **Partial extraction** | Correct core information is captured, but an important supported detail is missing |
-| **Mapping error** | Supported information is assigned to the wrong structured field |
-| **Status / certainty error** | Information is extracted but assigned an incorrect clinical status or certainty |
+| **Field mis-mapping** | Supported information is assigned to the wrong structured field |
+| **Status / certainty error** | Information is extracted but assigned an incorrect status or certainty |
 | **Omission** | Supported information that should be represented is missing |
-| **Unsupported inference** | The model introduces a factual or action claim not supported by the transcript |
+| **Unsupported inference** | A factual or action claim is introduced without sufficient support from the source |
 
-The transcript is treated as the primary evidence source during semantic
-adjudication.
-
----
-
-## Development / Pilot Results
-
-Five cases were used for development and evaluation-protocol refinement.
-
-### Structural Results
-
-| Condition | Schema-Valid Outputs | Total Schema Errors |
-|---|---:|---:|
-| Baseline | 0 / 5 | 182 |
-| Schema-Constrained | 5 / 5 | 0 |
-
-### Semantic Results
-
-| Condition | Observed Semantic Errors |
-|---|---:|
-| Baseline | 41 |
-| Schema-Constrained | 16 |
-
-This corresponds to an observed reduction from **41 to 16 semantic errors**
-across the five development cases.
-
-**Important:** These are development/pilot results and are not reported as
-held-out performance.
+The transcript is treated as the primary evidence source for Study 1 semantic adjudication.
 
 ---
 
-## Preliminary Held-Out Results
+# Study 1 Error-Category Analysis
 
-The held-out evaluation contains **35 cases** and is currently in progress.
+Full category-level annotations were available for a **14-case held-out subset**.
 
-For the first **3 completed paired cases**:
-
-### Structural Reliability
-
-| Condition | Schema-Valid Outputs | Total Schema Errors |
-|---|---:|---:|
-| Baseline | 0 / 3 | 68 |
-| Schema-Constrained | 3 / 3 | 0 |
-
-### Semantic Reliability
-
-| Condition | Semantic Errors |
-|---|---:|
-| Baseline | 15 |
-| Schema-Constrained | 6 |
-
-This represents an **interim observed reduction of 60%**, but the sample is
-currently too small for a final conclusion.
-
-A particularly interesting preliminary pattern is visible across error types:
+Across these cases:
 
 | Error Category | Baseline | Schema-Constrained |
 |---|---:|---:|
-| Partial extraction | 4 | 2 |
-| Mapping error | 1 | 0 |
-| Status / certainty error | 0 | 0 |
-| Omission | 10 | 1 |
-| Unsupported inference | 0 | 3 |
+| Field mis-mapping | 2 | 1 |
+| Omission | 26 | 15 |
+| Partial extraction | 7 | 8 |
+| Status / certainty error | 2 | 5 |
+| Unsupported inference | 2 | 11 |
+| **Total** | **39** | **40** |
 
-The preliminary results suggest an important trade-off:
+These category-level counts should not be interpreted as covering all 35 held-out cases.
 
-> **Schema constraints can eliminate structural violations and substantially
-> reduce omissions, while still allowing — and in some cases introducing —
-> unsupported semantic commitments.**
-
-This observation is preliminary and will be reassessed after the full held-out
-evaluation is complete.
+The subset illustrates why aggregate semantic-error counts alone are insufficient: schema constraints may reduce some forms of error while increasing others.
 
 ---
 
-## Reproducibility
+# Study 2 — Controlled Mechanism Analysis
 
-The experimental workflow includes several safeguards intended to make the
-evaluation reproducible:
+Study 2 was designed after Study 1 to investigate possible conditions associated with semantic failure.
 
-- frozen schema before held-out evaluation,
-- frozen prompt templates,
-- frozen semantic error definitions,
-- fixed held-out model,
-- identical cases across generation conditions,
-- SHA-256 hashes of raw model outputs,
-- structural validation using the same schema for both conditions, and
-- checkpointing of completed generation results.
+Unlike Study 1, which uses naturally occurring clinical dialogues, Study 2 uses **controlled source scenarios** that systematically vary the evidence available for a target structured prediction.
 
-Completed outputs are not regenerated once frozen.
+The experiment contains:
 
----
+- 48 source scenarios,
+- 4 schema variants,
+- 192 total generations,
+- 4 target fields,
+- 4 evidence conditions.
 
-## Current Research Status
+All 192 generations were completed and adjudicated.
 
-### Completed
+## Evidence Conditions
 
-- Public dataset preparation
-- Structured clinical schema development
-- Gold annotation development
-- Semantic error taxonomy
-- Five-case development/pilot experiment
-- Baseline generation condition
-- Schema-constrained generation condition
-- Structural validation pipeline
-- Frozen held-out evaluation protocol
+- **Explicit:** the source clearly supports the target value.
+- **Ambiguous:** the source allows multiple plausible interpretations.
+- **Absent:** the source does not contain evidence supporting a target value.
+- **Contradictory:** the source contains conflicting evidence.
 
-### In Progress
+## Schema Conditions
 
-- 35-case held-out generation
-- Manual semantic adjudication
-- Error-category analysis
-- Final statistical comparison
+- **Forced-required**
+- **Required-nullable**
+- **Optional**
+- **Semantically richer**
 
-The results in this repository should therefore be interpreted as
-**work in progress rather than final study conclusions**.
+The purpose is not simply to compare schema accuracy, but to examine how schema representation interacts with the evidence available to the model.
 
 ---
 
-## Repository Structure
+# Study 2 Error Distribution
+
+Across 27 semantic errors:
+
+| Error Category | Count |
+|---|---:|
+| Status / certainty error | 14 |
+| Field mis-mapping | 5 |
+| Unsupported inference | 4 |
+| Omission | 3 |
+| Partial extraction | 1 |
+
+The concentration of status/certainty errors is also consistent with the lower observed reliability of `symptoms[].status` relative to the other tested fields.
+
+---
+
+# Reproducibility
+
+The project uses several safeguards to preserve experimental integrity:
+
+- frozen evaluation protocols,
+- frozen schemas,
+- frozen semantic-error definitions,
+- fixed generation configurations,
+- matched experimental conditions,
+- SHA-256 hashes of experimental artifacts,
+- checkpointed generation outputs,
+- preserved gold annotations, and
+- separation between Study 1 and Study 2 artifacts.
+
+Study 2 generation completed successfully for all **192/192 experimental slots** with valid generated responses.
+
+Completed frozen outputs are not regenerated during analysis.
+
+---
+
+# Large Experimental Artifacts
+
+The complete Study 2 generation package is too large to store directly in the main Git repository.
+
+The repository therefore contains the components needed to understand and audit the experiment, including:
+
+- experimental design,
+- scenario specifications,
+- analysis code,
+- aggregate results,
+- tables,
+- figures,
+- adjudication methodology,
+- artifact manifests, and
+- SHA-256 hashes identifying frozen outputs.
+
+Large raw artifacts may be distributed separately where appropriate.
+
+Their omission from the Git repository does not affect the reported aggregate analyses.
+
+---
+
+# Limitations
+
+The results should be interpreted within the scope of the experimental design.
+
+Important limitations include:
+
+- Study 1 evaluates a single frozen model family.
+- Study 2 uses controlled synthetic scenarios rather than estimating real-world clinical error prevalence.
+- Study 2 contains three independently authored scenarios per field × evidence condition.
+- Comparisons across evidence conditions are descriptive because the evidence conditions are represented by different source scenarios rather than perfectly paired transformations.
+- Small numbers of discordant paired observations limit statistical conclusions about individual schema variants.
+- The experiments evaluate structured information extraction reliability, not clinical diagnosis or medical decision-making.
+- The findings should therefore be interpreted as evidence about model behavior under the tested conditions rather than universal causal claims.
+
+---
+
+# Planned Stage 3 — Evidence-Aware Abstention and Verification
+
+Study 1 established that schema enforcement can solve structural validity without solving semantic reliability.
+
+Study 2 then showed that semantic failure is strongly associated with evidence ambiguity in the controlled scenarios and that allowing abstention does not guarantee appropriate abstention behavior.
+
+Stage 3 will investigate whether an explicit evidence-aware mechanism can improve this decision process.
+
+The central question is:
+
+> **Can an LLM recognize when the source evidence is insufficient to justify a structured prediction and appropriately choose to commit, abstain, verify, or request additional evidence?**
+
+Potential mechanisms under consideration include:
+
+- explicit evidence-support assessment before prediction,
+- confidence or support-state representation,
+- evidence-linked verification,
+- targeted self-checking before commitment,
+- retrieval or clarification triggers, and
+- revision of an initial prediction when evidence does not sufficiently support it.
+
+The Stage 3 protocol has **not yet been frozen**, and no Stage 3 results are currently reported.
+
+---
+
+# Research Direction
+
+The broader goal of this work is to move beyond treating valid structured output as equivalent to reliable reasoning.
+
+The current research direction is toward **evidence-aware LLM and agentic systems** that can:
+
+- evaluate whether available evidence supports a conclusion,
+- distinguish uncertainty from absence,
+- avoid unsupported commitment,
+- seek additional information when necessary,
+- verify intermediate conclusions, and
+- revise decisions when new evidence becomes available.
+
+---
+
+# Repository Structure
 
 ```text
 llm-reliability-structured-extraction/
 │
 ├── README.md
 │
-├── notebooks/
-│   └── LLM_Reliability_Experiments.ipynb
+├── paper/
+│   └── manuscript.pdf
 │
-├── schema/
-│   └── clinical_schema.json
+├── study1/
+│   ├── notebooks/
+│   ├── schema/
+│   ├── analysis/
+│   └── results/
 │
-├── results/
-│   └── heldout_results_summary.json
+├── study2/
+│   ├── protocol/
+│   ├── scenarios/
+│   ├── analysis/
+│   ├── tables/
+│   └── figures/
+│
+├── reproducibility/
+│   ├── artifact_manifest.json
+│   └── artifact_hashes.txt
 │
 └── docs/
-    └── research_overview.pdf
+    ├── methodology.md
+    └── semantic_adjudication_protocol.md
+```
+
+---
+
+## Project Status
+
+**Study 1:** Complete  
+**Study 2:** Complete  
+**Stage 3:** Experimental design / planning  
+**Manuscript:** In preparation
+
+This repository represents independent research and should not be interpreted as a peer-reviewed publication unless explicitly stated otherwise.
